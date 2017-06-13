@@ -166,7 +166,7 @@ namespace LuaInterface
         
         void OpenBaseLuaLibs()
         {
-            DoFile("tolua.lua");            //tolua table名字已经存在了,不能用require
+            DoFile("ToLua/tolua.lua");            //tolua table名字已经存在了,不能用require
             LuaUnityLibs.OpenLuaLibs(L);
         }
 

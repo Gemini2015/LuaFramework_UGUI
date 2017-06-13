@@ -21,32 +21,69 @@ SOFTWARE.
 */
 using UnityEngine;
 using LuaInterface;
+using Cos.Common;
 
-public class LuaClient : MonoBehaviour
+public class LuaManager : TSingletonMono<LuaManager>
 {
-    public static LuaClient Instance
+
+    #region Singleton
+
+    protected override void OnCreateInstance()
     {
-        get;
-        protected set;
+        IsInited = false;
+    }
+
+    protected override void OnResetInstance()
+    {
+        if(!IsInited)
+            return;
+
+        Destroy();
+        IsInited = false;
+    }
+
+    #endregion
+
+    public bool IsInited { get; private set; }
+
+    public LuaState CurrentLuaState
+    {
+        get
+        {
+            return luaState;
+        }
     }
 
     protected LuaState luaState = null;
     protected LuaLooper loop = null;
-    
-    protected virtual void LoadLuaFiles()
-    {
-        OnLoadFinished();
-    }
 
+    public void InitLua()
+    {
+        if(IsInited)
+            return;
+
+        luaState = new LuaState();
+
+        OpenLibs();
+        luaState.LuaSetTop(0);
+
+        LuaBinder.Bind(luaState);
+        LuaCoroutine.Register(luaState, this);
+
+        luaState.Start();
+
+        loop = gameObject.AddComponent<LuaLooper>();
+        loop.luaState = luaState;
+
+        IsInited = true;
+    }
+    
     protected virtual void OpenLibs()
     {
         luaState.OpenLibs(LuaDLL.luaopen_pb);
         luaState.OpenLibs(LuaDLL.luaopen_struct);
         luaState.OpenLibs(LuaDLL.luaopen_lpeg);
-#if UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
         luaState.OpenLibs(LuaDLL.luaopen_bit);
-#endif
-        
     }
         
     //cjson 比较特殊，只new了一个table，没有注册库，这里注册一下
@@ -59,40 +96,7 @@ public class LuaClient : MonoBehaviour
         luaState.OpenLibs(LuaDLL.luaopen_cjson_safe);
         luaState.LuaSetField(-2, "cjson.safe");                               
     }
-
-    protected void StartLooper()
-    {
-        loop = gameObject.AddComponent<LuaLooper>();
-        loop.luaState = luaState;
-    }
-
-    protected virtual void Bind()
-    {        
-        LuaBinder.Bind(luaState);
-        LuaCoroutine.Register(luaState, this);
-    }
-
-    protected void Init()
-    {
-        luaState = new LuaState();
-        OpenLibs();
-        luaState.LuaSetTop(0);
-        Bind();
-        LoadLuaFiles();    
-    }
-
-    protected void Awake()
-    {
-        Instance = this;
-        Init();
-    }
-
-    protected virtual void OnLoadFinished()
-    {
-        luaState.Start();
-        StartLooper();
-    }
-    
+        
     public virtual void Destroy()
     {
         if (luaState != null)
@@ -106,28 +110,30 @@ public class LuaClient : MonoBehaviour
                 loop = null;
             }
 
-            state.Dispose();            
-            Instance = null;
+            state.Dispose();
         }
     }
 
-    protected void OnDestroy()
+
+    #region Interface
+
+    public object[] DoFile(string fileName)
     {
-        Destroy();
+        return luaState.DoFile(fileName);
     }
 
-    protected void OnApplicationQuit()
+    public object[] CallFunction(string funcName, params object[] args)
     {
-        Destroy();
+        var func = luaState.GetFunction(funcName);
+        object[] result = null;
+        if(func != null)
+        {
+            result = func.Call(args);
+            func.Dispose();
+            func = null;
+        }
+        return result;
     }
 
-    public static LuaState GetMainState()
-    {
-        return Instance.luaState;
-    }
-
-    public LuaLooper GetLooper()
-    {
-        return loop;
-    }
+    #endregion
 }

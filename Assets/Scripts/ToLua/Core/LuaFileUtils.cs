@@ -47,8 +47,14 @@ namespace LuaInterface
 
         private static string GetLuaPath(string fileName)
         {
-            fileName = fileName.ToLower().Replace(".", "/");
-            string filePath = string.Format("{0}/{1}", LuaRoot, fileName);
+            fileName = fileName.ToLower();
+            if(fileName.EndsWith(".lua"))
+            {
+                var index = fileName.LastIndexOf(".lua");
+                fileName = fileName.Substring(0, index);
+            }
+            fileName = fileName.Replace(".", "/");
+            string filePath = string.Format("{0}/{1}.lua", LuaRoot, fileName);
             return filePath;
         }
     }
